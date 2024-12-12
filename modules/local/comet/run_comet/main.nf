@@ -21,6 +21,9 @@ process RUN_COMET {
 
     script:
     """
+    # set to the allowed number of CPUs for this process
+    sed -i 's/^num_threads.*/'"num_threads = ${task.cpus}"/ ${comet_param}
+
     comet -P"${comet_param}" -N"${mzmlfile.baseName}" -D"${fasta}" "${mzmlfile}"
     """
 }
