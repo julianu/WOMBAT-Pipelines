@@ -18,7 +18,7 @@ process RAW2MZML {
     script:
     """
     # Check if the file is a mzML file
-    if [[ "${rawfile}" == *.{mzML,mzml} ]]
+    if [[ "${rawfile}" =~ .*\\.(mzML|mzml)\$ ]]
     then
         # check if same file
         if [[ "${rawfile}" != "${rawfile.baseName}.mzML" ]]
