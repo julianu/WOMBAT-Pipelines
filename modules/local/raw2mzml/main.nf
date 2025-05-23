@@ -1,5 +1,5 @@
 process RAW2MZML {
-    label 'process_intermediate'
+    label 'process_low'
     
     conda params.enable_conda ? "bioconda::thermorawfileparser==1.4.5--h05cac1d_1" : null
 

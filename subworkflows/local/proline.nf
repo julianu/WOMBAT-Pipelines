@@ -9,7 +9,6 @@ ch_proline_parameters = Channel.fromPath("$projectDir/assets/lfq_param_file_temp
 
 include { RAW2MZDB }                 from '../../modules/local/raw2mzdb/main'  
 include { MZDB2MGF }                      from '../../modules/local/mzdb2mgf/main'
-include { CREATE_DECOY_DATABASE }                      from '../../modules/local/searchgui/create_decoy_database/main'
 include { PREPARE_SEARCHGUI }                      from '../../modules/local/searchgui/prepare_searchgui/main'
 include { RUN_SEARCHGUI }                     from '../../modules/local/searchgui/run_searchgui/main'
 include { CONFIG_PROLINE }                    from '../../modules/local/proline/config_proline/main'
@@ -30,11 +29,14 @@ workflow PROLINE {
     main:
     RAW2MZDB ( raws )
     MZDB2MGF ( RAW2MZDB.out )
-
     def add_decoys = ('add_decoys' in parameters) ? parameters['add_decoys'] : true
-    CREATE_DECOY_DATABASE ( fasta , add_decoys )
+    if (add_decoys) {
+        search_fasta = CREATE_DECOY_DATABASE ( fasta )
+    } else {
+        search_fasta = fasta
+    }
     PREPARE_SEARCHGUI ( parameters, ptm_mapping.collect() )
-    RUN_SEARCHGUI ( MZDB2MGF.out, PREPARE_SEARCHGUI.out,  CREATE_DECOY_DATABASE.out.ifEmpty(fasta) )
+    RUN_SEARCHGUI ( MZDB2MGF.out, PREPARE_SEARCHGUI.out, fasta )
     CONFIG_PROLINE ( RUN_SEARCHGUI.out.searchfiles.collect{ it[0] }, ch_proline_parameters, parameters)
     EXP_DESIGN_PROLINE ( RAW2MZDB.out.collect() , exp_design )
     RUN_PROLINE ( CONFIG_PROLINE.out.xml_search_files, RAW2MZDB.out.mzdbs.collect(), CONFIG_PROLINE.out.lfq_param_file,  

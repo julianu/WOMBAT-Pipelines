@@ -9,9 +9,6 @@ import org.yaml.snakeyaml.Yaml
 
 def summary_params = NfcoreSchema.paramsSummaryMap(workflow, params)
 
-// Validate input parameters
-WorkflowWombat.initialise(params, log)
-
 // Check input path parameters to see if they exist
 //def checkPathParamList = [ params.fasta, params.params, params.raws, params.mzmls, params.sdrf, params.exp_design]
 //for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
@@ -51,6 +48,8 @@ ch_ptm_mapping2 = Channel.fromPath("$projectDir/assets/unimod2searchgui_mapping.
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 //
 //include { TRANSPROTEOMICS } from '../subworkflows/local/transproteomics'
+include { RAW2MZML } from '../modules/local/raw2mzml/main'
+include { CREATE_DECOY_DATABASE } from '../modules/local/searchgui/create_decoy_database/main'
 include { PROLINE } from '../subworkflows/local/proline'
 include { MAXQUANT } from '../subworkflows/local/maxquant'
 include { COMPOMICS } from '../subworkflows/local/compomics'
@@ -107,6 +106,12 @@ workflow WOMBAT {
     // 
     ch_parameters = SDRFMERGE.out.parameters_out.map{ new Yaml().load(it)["params"] }
 
+    // convert the raw to mzML for workflows needing this
+    if (params.workflow.contains("all") || params.workflow.contains("compomics") || params.workflow.contains("tpp")) {
+        mzmls = RAW2MZML (PREPARE_FILES.out.raws.flatten())
+    }
+    
+    search_fasta = CREATE_DECOY_DATABASE ( ch_fasta, ch_parameters )
 
 //    CUSTOM_DUMPSOFTWAREVERSIONS (
 //        ch_versions.unique().collectFile(name: 'collated_versions.yml')
@@ -139,32 +144,22 @@ workflow WOMBAT {
 
     }
 
-    //
     // SUBWORKFLOW 3:
-    //
     // Compomics-based
     if (params.workflow.contains("all") || params.workflow.contains("compomics")) {
-        COMPOMICS (ch_fasta, PREPARE_FILES.out.raws.flatten(), ch_parameters, PREPARE_FILES.out.exp_design, ch_ptm_mapping)
-
-    //
-    // MODULE: calculate benchmarks
-    //
-    CALCBENCHMARKS_COMPOMICS ( JsonOutput.prettyPrint(JsonOutput.toJson(params)), COMPOMICS.out[0], COMPOMICS.out[1], COMPOMICS.out[2], COMPOMICS.out[3], ch_fasta, Channel.value("compomics") )
-
+        COMPOMICS (search_fasta, mzmls, ch_parameters, PREPARE_FILES.out.exp_design, ch_ptm_mapping, PREPARE_FILES.out.raws.flatten())
+        
+        // MODULE: calculate benchmarks
+        //CALCBENCHMARKS_COMPOMICS ( JsonOutput.prettyPrint(JsonOutput.toJson(params)), COMPOMICS.out[0], COMPOMICS.out[1], COMPOMICS.out[2], COMPOMICS.out[3], ch_fasta, Channel.value("compomics") )
     }
 
-    //
     // SUBWORKFLOW 4:
-    //
     // Transproteomic Pipeline-based
     if (params.workflow.contains("all") || params.workflow.contains("tpp")) {
-        TPP (ch_fasta, PREPARE_FILES.out.raws.flatten(), ch_parameters, PREPARE_FILES.out.exp_design, ch_ptm_mapping2.collect())
+        TPP (search_fasta, mzmls, ch_parameters, PREPARE_FILES.out.exp_design, ch_ptm_mapping2.collect(), PREPARE_FILES.out.raws.flatten())
 
-    //
-    // MODULE: calculate benchmarks
-    //
-    CALCBENCHMARKS_TPP ( JsonOutput.prettyPrint(JsonOutput.toJson(params)), TPP.out[0], TPP.out[1], TPP.out[2], TPP.out[3], ch_fasta, Channel.value("tpp") )
-
+        // MODULE: calculate benchmarks
+        CALCBENCHMARKS_TPP ( JsonOutput.prettyPrint(JsonOutput.toJson(params)), TPP.out[0], TPP.out[1], TPP.out[2], TPP.out[3], ch_fasta, Channel.value("tpp") )
     }
 
 
