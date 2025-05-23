@@ -1,14 +1,13 @@
 process RUN_SEARCHGUI {
-label 'process_high'
+  label 'process_high'
 
-conda (params.enable_conda ? "bioconda::searchgui-4.2.9" : null)
-if (workflow.containerEngine == 'singularity'|| workflow.containerEngine == 'apptainer') {
-        container "docker://veitveit/searchgui:4.2.9--hdfd78af_0"
-} else {
-        container "quay.io/biocontainers/searchgui:4.2.9--hdfd78af_0"
-}
+  conda params.enable_conda ? "bioconda::searchgui-4.2.9" : null
+
+  container "${workflow.containerEngine == 'singularity' || workflow.containerEngine == 'apptainer'
+    ? 'docker://veitveit/searchgui:4.2.9--hdfd78af_0'
+    : 'quay.io/biocontainers/searchgui:4.2.9--hdfd78af_0'}"
   
-publishDir "${params.outdir}/searchgui", mode:'copy', pattern: '*.zip'
+  publishDir "${params.outdir}/searchgui", mode:'copy', pattern: '*.zip'
   
   input:
   path mgffile
@@ -19,11 +18,13 @@ publishDir "${params.outdir}/searchgui", mode:'copy', pattern: '*.zip'
   tuple path("${mgffile.baseName}.zip"), path(mgffile), emit: searchfiles
   
   script:
-
+  // TODO: fix engines
+  // working: xtandem, msgf, ms-amanda, myrimatch, meta_morpheus
+  // problems: comet, tide, andromeda
   def engine = [:]
-  for (i in ["xtandem", "msgf", "ms-amanda", "tide", "comet", "myrimatch", "meta_morpheus", "andromeda"]) {
-    t_engine = params.proline_engine.contains(i) ? 1 : 0
-    engine.put(i, t_engine)
+  ["xtandem", "msgf", "ms-amanda", "tide", "comet", "myrimatch", "meta_morpheus", "andromeda"].each { se ->
+    def t_engine = params.searchgui_engines.contains(se) ? 1 : 0
+    engine.put(se, t_engine)
   }
   """
   # needed for Myrimatch, see https://github.com/compomics/searchgui/issues/245
@@ -38,4 +39,4 @@ publishDir "${params.outdir}/searchgui", mode:'copy', pattern: '*.zip'
   mv searchgui_out.zip ${mgffile.baseName}.zip
   """    
   
-  }    
+  }
